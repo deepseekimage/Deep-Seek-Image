@@ -153,29 +153,28 @@
     display: block;
   }
 
-  .image-placeholder {
-    width: 100%;
-    height: 300px;
-    background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+  .image-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
     color: #a1a1aa;
-    border: 2px dashed #3f3f46;
+    font-size: 14px;
   }
 
-  .image-placeholder svg {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 12px;
-    opacity: 0.5;
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #27272a;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 12px;
   }
 
-  .image-placeholder.success {
-    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
-    border-color: #10b981;
-    color: #34d399;
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .progress-container {
@@ -338,52 +337,15 @@
     cursor: not-allowed;
   }
 
-  .request-counter {
-    position: fixed;
-    top: 16px;
-    right: 24px;
-    padding: 8px 16px;
-    background: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 20px;
-    font-size: 13px;
-    color: #a1a1aa;
-    font-weight: 500;
-  }
-
-  .request-counter span {
-    color: #60a5fa;
-    font-weight: 600;
-  }
-
   .badge {
     display: inline-block;
     padding: 4px 8px;
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
     margin-bottom: 8px;
-  }
-
-  .badge.real {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-  }
-
-  .error-message {
-    margin-top: 12px;
-    padding: 12px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
-    color: #fca5a5;
-    font-size: 14px;
-  }
-
-  .error-message strong {
-    color: #f87171;
   }
 
   .download-link {
@@ -401,6 +363,20 @@
 
   .download-link:hover {
     background: rgba(59, 130, 246, 0.3);
+  }
+
+  .error-message {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-size: 14px;
+  }
+
+  .error-message strong {
+    color: #f87171;
   }
 </style>
 </head>
@@ -422,7 +398,7 @@
       <circle cx="27" cy="20" r="3" fill="#3b82f6"/>
     </svg>
     <h1>Hi! What's on your mind today?</h1>
-    <p>Ask me anything or request an image generation</p>
+    <p>Describe any image and I'll generate it for you</p>
   </div>
 
   <div class="chat" id="chat"></div>
@@ -465,31 +441,14 @@
   </div>
 </div>
 
-<div class="request-counter">
-  Request: <span id="counter">1</span>/3
-</div>
-
 <script>
   const chat = document.getElementById('chat');
   const input = document.getElementById('userInput');
   const sendBtn = document.getElementById('sendBtn');
   const welcome = document.getElementById('welcome');
-  const counterEl = document.getElementById('counter');
   
-  let requestCount = 1;
   let isGenerating = false;
   let activeMode = null;
-
-  // Красивые тематические картинки с Unsplash (прямые CDN ссылки)
-  const demoImages = {
-    default: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1024&h=576&fit=crop',
-    nature: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1024&h=576&fit=crop',
-    tech: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1024&h=576&fit=crop',
-    space: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1024&h=576&fit=crop',
-    art: 'https://images.unsplash.com/photo-1541963463532-d68292c34b19?w=1024&h=576&fit=crop',
-    city: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1024&h=576&fit=crop',
-    abstract: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=1024&h=576&fit=crop'
-  };
 
   input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -533,17 +492,6 @@
     return bubble;
   }
 
-  function getImageCategory(prompt) {
-    const p = prompt.toLowerCase();
-    if (p.includes('nature') || p.includes('forest') || p.includes('mountain') || p.includes('tree')) return 'nature';
-    if (p.includes('tech') || p.includes('computer') || p.includes('code') || p.includes('ai')) return 'tech';
-    if (p.includes('space') || p.includes('galaxy') || p.includes('star') || p.includes('cosmos')) return 'space';
-    if (p.includes('art') || p.includes('paint') || p.includes('draw')) return 'art';
-    if (p.includes('city') || p.includes('urban') || p.includes('building')) return 'city';
-    if (p.includes('abstract') || p.includes('color') || p.includes('pattern')) return 'abstract';
-    return 'default';
-  }
-
   async function sendMessage() {
     const text = input.value.trim();
     if (!text || isGenerating) return;
@@ -556,72 +504,20 @@
     isGenerating = true;
     sendBtn.disabled = true;
     
-    counterEl.textContent = requestCount;
+    // Генерируем изображение для КАЖДОГО запроса
+    await generateRealImage(text);
     
-    if (requestCount % 3 === 0) {
-      await generateRealImage(text);
-    } else {
-      await simulateGeneration(text);
-    }
-    
-    requestCount++;
     isGenerating = false;
     sendBtn.disabled = false;
   }
 
-  function simulateGeneration(prompt) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const bubble = addMessage(
-          `<div class="badge">Generating</div>
-           <div>I'm creating your image: "${prompt}"</div>
-           <div class="progress-container">
-             <div class="progress-header">
-               <span>Generating image...</span>
-               <span class="progress-percent">0%</span>
-             </div>
-             <div class="progress-bar">
-               <div class="progress-fill" style="width: 0%"></div>
-             </div>
-           </div>`,
-          'ai',
-          true
-        );
-        
-        const fill = bubble.querySelector('.progress-fill');
-        const percentText = bubble.querySelector('.progress-percent');
-        
-        const duration = 60000;
-        const startTime = Date.now();
-        
-        const timer = setInterval(() => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(Math.floor((elapsed / duration) * 100), 100);
-          
-          fill.style.width = progress + '%';
-          percentText.textContent = progress + '%';
-          
-          if (progress >= 100) {
-            clearInterval(timer);
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.innerHTML = '<strong>Network Error</strong><br><span style="font-size: 12px; opacity: 0.8;">Failed to connect to generation server. Please try again.</span>';
-            bubble.appendChild(errorDiv);
-            chat.scrollTop = chat.scrollHeight;
-            resolve();
-          }
-        }, 100);
-      }, 500);
-    });
-  }
-
   async function generateRealImage(prompt) {
     const bubble = addMessage(
-      `<div class="badge real">Real Generation</div>
-       <div>Generating image: "${prompt}"</div>
+      `<div class="badge">AI Generation</div>
+       <div>Creating image: "${prompt}"</div>
        <div class="progress-container">
          <div class="progress-header">
-           <span>Downloading from AI...</span>
+           <span>Generating with AI...</span>
            <span class="progress-percent">0%</span>
          </div>
          <div class="progress-bar">
@@ -635,12 +531,70 @@
     const fill = bubble.querySelector('.progress-fill');
     const percentText = bubble.querySelector('.progress-percent');
     
-    // Определяем категорию и выбираем картинку
-    const category = getImageCategory(prompt);
-    const imageUrl = demoImages[category] || demoImages.default;
+    // Используем Pollinations.ai - бесплатный API без ключей [[8]][[15]]
+    // Landscape ориентация (16:9) вместо portrait
+    const width = 1024;
+    const height = 576; // Горизонтальное изображение
+    const seed = Math.floor(Math.random() * 1000000); // Случайный seed для разнообразия
+    const encodedPrompt = encodeURIComponent(prompt);
     
-    // Анимация прогресса
-    const duration = 3000;
+    // URL для генерации изображения [[1]][[8]]
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+    
+    // Показываем индикатор загрузки
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'image-container';
+    imgContainer.innerHTML = `
+      <div class="image-loading">
+        <div class="spinner"></div>
+        <div>Generating image...</div>
+        <div style="font-size: 12px; margin-top: 6px; opacity: 0.6;">This may take a few seconds</div>
+      </div>
+    `;
+    
+    const img = document.createElement('img');
+    img.style.display = 'none';
+    img.alt = prompt;
+    
+    img.onload = () => {
+      // Успешная генерация
+      imgContainer.innerHTML = '';
+      imgContainer.appendChild(img);
+      img.style.display = 'block';
+      
+      // Убираем прогресс бар
+      const progressContainer = bubble.querySelector('.progress-container');
+      if (progressContainer) {
+        progressContainer.style.display = 'none';
+      }
+      
+      // Добавляем ссылку для скачивания
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.target = '_blank';
+      link.className = 'download-link';
+      link.innerHTML = 'Open full size';
+      imgContainer.appendChild(link);
+      
+      chat.scrollTop = chat.scrollHeight;
+    };
+    
+    img.onerror = () => {
+      // Ошибка генерации
+      imgContainer.innerHTML = `
+        <div class="error-message">
+          <strong>Generation failed</strong><br>
+          <span style="font-size: 12px; opacity: 0.8;">Please try again with a different prompt.</span>
+        </div>
+      `;
+    };
+    
+    img.src = imageUrl;
+    imgContainer.appendChild(img);
+    bubble.appendChild(imgContainer);
+    
+    // Анимация прогресса (показываем пока грузится)
+    const duration = 10000; // 10 секунд максимум
     const startTime = Date.now();
     
     const timer = setInterval(() => {
@@ -652,57 +606,10 @@
       
       if (progress >= 100) {
         clearInterval(timer);
-        
-        // Показываем картинку
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'image-container';
-        
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = prompt;
-        img.style.display = 'none';
-        
-        img.onload = () => {
-          imgContainer.innerHTML = '';
-          imgContainer.appendChild(img);
-          img.style.display = 'block';
-          
-          const progressContainer = bubble.querySelector('.progress-container');
-          if (progressContainer) {
-            progressContainer.style.display = 'none';
-          }
-          
-          // Добавляем ссылку для скачивания
-          const link = document.createElement('a');
-          link.href = imageUrl;
-          link.target = '_blank';
-          link.className = 'download-link';
-          link.innerHTML = ' Open full size';
-          imgContainer.appendChild(link);
-          
-          chat.scrollTop = chat.scrollHeight;
-        };
-        
-        img.onerror = () => {
-          // Fallback на placeholder
-          imgContainer.innerHTML = `
-            <div class="image-placeholder success">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
-              </svg>
-              <div>Image generated successfully!</div>
-              <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">"${prompt}"</div>
-            </div>
-          `;
-        };
-        
-        imgContainer.appendChild(img);
-        bubble.appendChild(imgContainer);
-        chat.scrollTop = chat.scrollHeight;
       }
     }, 100);
+    
+    chat.scrollTop = chat.scrollHeight;
   }
 </script>
 
