@@ -145,6 +145,7 @@
     border: 1px solid #27272a;
     position: relative;
     background: #18181b;
+    min-height: 300px;
   }
 
   .image-container img {
@@ -161,6 +162,7 @@
     text-align: center;
     color: #a1a1aa;
     font-size: 14px;
+    width: 100%;
   }
 
   .spinner {
@@ -260,6 +262,7 @@
   .actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .action-btn {
@@ -285,6 +288,34 @@
   .action-btn.active {
     background: rgba(59, 130, 246, 0.15);
     border-color: #3b82f6;
+  }
+
+  .style-selector {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .style-btn {
+    padding: 4px 10px;
+    border: 1px solid #27272a;
+    background: #0d0d0d;
+    border-radius: 12px;
+    font-size: 11px;
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .style-btn:hover {
+    background: #1e1e1e;
+    color: #e4e4e7;
+  }
+
+  .style-btn.active {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: #8b5cf6;
+    color: #a78bfa;
   }
 
   .right-actions {
@@ -378,6 +409,33 @@
   .error-message strong {
     color: #f87171;
   }
+
+  .prompt-preview {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(139, 92, 246, 0.1);
+    border-left: 3px solid #8b5cf6;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #a78bfa;
+    font-style: italic;
+  }
+
+  .retry-btn {
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    color: #60a5fa;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .retry-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+  }
 </style>
 </head>
 <body>
@@ -406,6 +464,13 @@
   <div class="input-area">
     <div class="input-wrapper">
       <textarea id="userInput" placeholder="Message DeepSeek" rows="1"></textarea>
+      <div class="style-selector">
+        <button class="style-btn active" data-style="realistic">Realistic</button>
+        <button class="style-btn" data-style="anime">Anime</button>
+        <button class="style-btn" data-style="artistic">Artistic</button>
+        <button class="style-btn" data-style="digital">Digital Art</button>
+        <button class="style-btn" data-style="photo">Photo</button>
+      </div>
       <div class="actions">
         <button class="action-btn" id="deepThinkBtn" onclick="toggleMode('deepThink')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -449,6 +514,15 @@
   
   let isGenerating = false;
   let activeMode = null;
+  let selectedStyle = 'realistic';
+
+  const stylePrompts = {
+    realistic: 'photorealistic, highly detailed, professional photography, 8k, ultra HD, sharp focus, natural lighting',
+    anime: 'anime style, manga art, vibrant colors, detailed illustration, studio ghibli quality, clean lines',
+    artistic: 'artistic painting, oil painting style, creative composition, rich colors, masterpiece, gallery quality',
+    digital: 'digital art, concept art, trending on artstation, highly detailed, professional digital illustration',
+    photo: 'professional photograph, DSLR quality, natural lighting, shallow depth of field, bokeh, 35mm lens'
+  };
 
   input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -460,6 +534,14 @@
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+
+  document.querySelectorAll('.style-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedStyle = btn.dataset.style;
+    });
   });
 
   function toggleMode(mode) {
@@ -492,6 +574,11 @@
     return bubble;
   }
 
+  function enhancePrompt(userPrompt, style) {
+    const styleSuffix = stylePrompts[style] || stylePrompts.realistic;
+    return `${userPrompt}, ${styleSuffix}, masterpiece, best quality`;
+  }
+
   async function sendMessage() {
     const text = input.value.trim();
     if (!text || isGenerating) return;
@@ -504,17 +591,19 @@
     isGenerating = true;
     sendBtn.disabled = true;
     
-    // Генерируем изображение для КАЖДОГО запроса
-    await generateRealImage(text);
+    await generateRealImage(text, selectedStyle);
     
     isGenerating = false;
     sendBtn.disabled = false;
   }
 
-  async function generateRealImage(prompt) {
+  async function generateRealImage(prompt, style) {
+    const enhancedPrompt = enhancePrompt(prompt, style);
+    
     const bubble = addMessage(
       `<div class="badge">AI Generation</div>
        <div>Creating image: "${prompt}"</div>
+       <div class="prompt-preview">Enhanced: ${enhancedPrompt}</div>
        <div class="progress-container">
          <div class="progress-header">
            <span>Generating with AI...</span>
@@ -531,24 +620,26 @@
     const fill = bubble.querySelector('.progress-fill');
     const percentText = bubble.querySelector('.progress-percent');
     
-    // Используем Pollinations.ai - бесплатный API без ключей [[8]][[15]]
-    // Landscape ориентация (16:9) вместо portrait
     const width = 1024;
-    const height = 576; // Горизонтальное изображение
-    const seed = Math.floor(Math.random() * 1000000); // Случайный seed для разнообразия
-    const encodedPrompt = encodeURIComponent(prompt);
+    const height = 1024;
+    const seed = Math.floor(Math.random() * 1000000);
+    const encodedPrompt = encodeURIComponent(enhancedPrompt);
     
-    // URL для генерации изображения [[1]][[8]]
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+    // Пробуем несколько вариантов URL
+    const imageUrls = [
+      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`,
+      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`,
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`
+    ];
     
-    // Показываем индикатор загрузки
     const imgContainer = document.createElement('div');
     imgContainer.className = 'image-container';
+    imgContainer.style.height = '400px';
     imgContainer.innerHTML = `
       <div class="image-loading">
         <div class="spinner"></div>
         <div>Generating image...</div>
-        <div style="font-size: 12px; margin-top: 6px; opacity: 0.6;">This may take a few seconds</div>
+        <div style="font-size: 12px; margin-top: 6px; opacity: 0.6;">This may take 10-30 seconds</div>
       </div>
     `;
     
@@ -556,21 +647,40 @@
     img.style.display = 'none';
     img.alt = prompt;
     
+    let currentUrlIndex = 0;
+    
+    const tryLoadImage = () => {
+      if (currentUrlIndex >= imageUrls.length) {
+        // Все варианты не сработали
+        imgContainer.innerHTML = `
+          <div class="error-message">
+            <strong>Generation failed</strong><br>
+            <span style="font-size: 12px; opacity: 0.8;">Could not generate image. Please try again.</span>
+            <br>
+            <button class="retry-btn" onclick="retryGeneration('${prompt.replace(/'/g, "\\'")}', '${style}')">Retry</button>
+          </div>
+        `;
+        return;
+      }
+      
+      img.src = imageUrls[currentUrlIndex];
+      console.log('Trying URL:', imageUrls[currentUrlIndex]);
+    };
+    
     img.onload = () => {
-      // Успешная генерация
+      console.log('Image loaded successfully!');
+      imgContainer.style.height = 'auto';
       imgContainer.innerHTML = '';
       imgContainer.appendChild(img);
       img.style.display = 'block';
       
-      // Убираем прогресс бар
       const progressContainer = bubble.querySelector('.progress-container');
       if (progressContainer) {
         progressContainer.style.display = 'none';
       }
       
-      // Добавляем ссылку для скачивания
       const link = document.createElement('a');
-      link.href = imageUrl;
+      link.href = img.src;
       link.target = '_blank';
       link.className = 'download-link';
       link.innerHTML = 'Open full size';
@@ -580,21 +690,19 @@
     };
     
     img.onerror = () => {
-      // Ошибка генерации
-      imgContainer.innerHTML = `
-        <div class="error-message">
-          <strong>Generation failed</strong><br>
-          <span style="font-size: 12px; opacity: 0.8;">Please try again with a different prompt.</span>
-        </div>
-      `;
+      console.log('Failed to load from:', imageUrls[currentUrlIndex]);
+      currentUrlIndex++;
+      tryLoadImage();
     };
     
-    img.src = imageUrl;
     imgContainer.appendChild(img);
     bubble.appendChild(imgContainer);
     
-    // Анимация прогресса (показываем пока грузится)
-    const duration = 10000; // 10 секунд максимум
+    // Запускаем загрузку
+    tryLoadImage();
+    
+    // Анимация прогресса
+    const duration = 30000;
     const startTime = Date.now();
     
     const timer = setInterval(() => {
@@ -610,6 +718,12 @@
     }, 100);
     
     chat.scrollTop = chat.scrollHeight;
+  }
+
+  function retryGeneration(prompt, style) {
+    isGenerating = false;
+    sendBtn.disabled = false;
+    generateRealImage(prompt, style);
   }
 </script>
 
