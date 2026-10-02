@@ -20,11 +20,42 @@
     border-bottom: 1px solid #1e1e1e;
     display: flex;
     align-items: center;
+    justify-content: space-between;
   }
 
   .logo {
     width: 32px;
     height: 32px;
+  }
+
+  .mode-switcher {
+    display: flex;
+    gap: 8px;
+    background: #18181b;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid #27272a;
+  }
+
+  .mode-btn {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .mode-btn:hover {
+    color: #e4e4e7;
+  }
+
+  .mode-btn.active {
+    background: #3b82f6;
+    color: white;
   }
 
   .app {
@@ -379,6 +410,11 @@
     margin-bottom: 8px;
   }
 
+  .badge.chat {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+  }
+
   .download-link {
     display: inline-block;
     margin-top: 12px;
@@ -436,6 +472,27 @@
   .retry-btn:hover {
     background: rgba(59, 130, 246, 0.3);
   }
+
+  .typing-dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: #3b82f6;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+  }
+
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
 </style>
 </head>
 <body>
@@ -446,6 +503,11 @@
     <path d="M16 8c-4.418 0-8 3.582-8 8s3.582 8 8 8 8-3.582 8-8-3.582-8-8-8zm0 14c-3.314 0-6-2.686-6-6s2.686-6 6-6 6 2.686 6 6-2.686 6-6 6z" fill="#3b82f6"/>
     <circle cx="18" cy="14" r="2" fill="#3b82f6"/>
   </svg>
+  
+  <div class="mode-switcher">
+    <button class="mode-btn active" onclick="switchMode('chat')">💬 Chat</button>
+    <button class="mode-btn" onclick="switchMode('image')">🎨 Image</button>
+  </div>
 </div>
 
 <div class="app">
@@ -455,8 +517,8 @@
       <path d="M24 12c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 22c-5.523 0-10-4.477-10-10s4.477-10 10-10 10 4.477 10 10-4.477 10-10 10z" fill="#3b82f6"/>
       <circle cx="27" cy="20" r="3" fill="#3b82f6"/>
     </svg>
-    <h1>Hi! What's on your mind today?</h1>
-    <p>Describe any image and I'll generate it for you</p>
+    <h1 id="welcomeTitle">Hi! What's on your mind today?</h1>
+    <p id="welcomeText">Ask me anything or switch to Image mode to generate pictures</p>
   </div>
 
   <div class="chat" id="chat"></div>
@@ -464,12 +526,12 @@
   <div class="input-area">
     <div class="input-wrapper">
       <textarea id="userInput" placeholder="Message DeepSeek" rows="1"></textarea>
-      <div class="style-selector">
+      <div class="style-selector" id="styleSelector" style="display: none;">
         <button class="style-btn active" data-style="realistic">Realistic</button>
-        <button class="style-btn" data-style="anime">Anime</button>
-        <button class="style-btn" data-style="artistic">Artistic</button>
         <button class="style-btn" data-style="digital">Digital Art</button>
+        <button class="style-btn" data-style="artistic">Artistic</button>
         <button class="style-btn" data-style="photo">Photo</button>
+        <button class="style-btn" data-style="anime">Anime</button>
       </div>
       <div class="actions">
         <button class="action-btn" id="deepThinkBtn" onclick="toggleMode('deepThink')">
@@ -511,7 +573,11 @@
   const input = document.getElementById('userInput');
   const sendBtn = document.getElementById('sendBtn');
   const welcome = document.getElementById('welcome');
+  const welcomeTitle = document.getElementById('welcomeTitle');
+  const welcomeText = document.getElementById('welcomeText');
+  const styleSelector = document.getElementById('styleSelector');
   
+  let currentMode = 'chat'; // 'chat' или 'image'
   let isGenerating = false;
   let activeMode = null;
   let selectedStyle = 'realistic';
@@ -523,6 +589,9 @@
     digital: 'digital art, concept art, trending on artstation, highly detailed, professional digital illustration',
     photo: 'professional photograph, DSLR quality, natural lighting, shallow depth of field, bokeh, 35mm lens'
   };
+
+  // Negative prompt чтобы НЕ было аниме девочек
+  const negativePrompt = 'anime, cartoon, illustration, drawing, 3d render, low quality, blurry, deformed, ugly, bad anatomy, disfigured, poorly drawn, bad proportions, gross proportions';
 
   input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -543,6 +612,24 @@
       selectedStyle = btn.dataset.style;
     });
   });
+
+  function switchMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    if (mode === 'chat') {
+      welcomeTitle.textContent = 'Hi! What\'s on your mind today?';
+      welcomeText.textContent = 'Ask me anything - I\'m here to help with questions and conversations';
+      styleSelector.style.display = 'none';
+      input.placeholder = 'Message DeepSeek';
+    } else {
+      welcomeTitle.textContent = 'Generate Amazing Images';
+      welcomeText.textContent = 'Describe what you want to see and I\'ll create it for you';
+      styleSelector.style.display = 'flex';
+      input.placeholder = 'Describe the image you want to generate...';
+    }
+  }
 
   function toggleMode(mode) {
     activeMode = activeMode === mode ? null : mode;
@@ -574,11 +661,6 @@
     return bubble;
   }
 
-  function enhancePrompt(userPrompt, style) {
-    const styleSuffix = stylePrompts[style] || stylePrompts.realistic;
-    return `${userPrompt}, ${styleSuffix}, masterpiece, best quality`;
-  }
-
   async function sendMessage() {
     const text = input.value.trim();
     if (!text || isGenerating) return;
@@ -591,19 +673,56 @@
     isGenerating = true;
     sendBtn.disabled = true;
     
-    await generateRealImage(text, selectedStyle);
+    if (currentMode === 'chat') {
+      await chatWithAI(text);
+    } else {
+      await generateRealImage(text, selectedStyle);
+    }
     
     isGenerating = false;
     sendBtn.disabled = false;
   }
 
+  async function chatWithAI(message) {
+    const bubble = addMessage(
+      `<div class="badge chat">AI Chat</div>
+       <div class="typing-dots">
+         <span></span>
+         <span></span>
+         <span></span>
+       </div>`,
+      'ai',
+      true
+    );
+    
+    try {
+      // Используем Pollinations text API (бесплатно)
+      const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}?model=mistral&seed=${Date.now()}`);
+      
+      if (!response.ok) throw new Error('API error');
+      
+      const text = await response.text();
+      
+      // Убираем typing dots и показываем ответ
+      bubble.innerHTML = `<div class="badge chat">AI Chat</div><div>${text}</div>`;
+      
+    } catch (error) {
+      console.error('Chat error:', error);
+      bubble.innerHTML = `<div class="badge chat">AI Chat</div>
+        <div class="error-message">
+          <strong>Failed to get response</strong><br>
+          <span style="font-size: 12px; opacity: 0.8;">Please try again.</span>
+        </div>`;
+    }
+  }
+
   async function generateRealImage(prompt, style) {
-    const enhancedPrompt = enhancePrompt(prompt, style);
+    const enhancedPrompt = `${prompt}, ${stylePrompts[style]}`;
     
     const bubble = addMessage(
       `<div class="badge">AI Generation</div>
        <div>Creating image: "${prompt}"</div>
-       <div class="prompt-preview">Enhanced: ${enhancedPrompt}</div>
+       <div class="prompt-preview">Style: ${style}</div>
        <div class="progress-container">
          <div class="progress-header">
            <span>Generating with AI...</span>
@@ -623,13 +742,15 @@
     const width = 1024;
     const height = 1024;
     const seed = Math.floor(Math.random() * 1000000);
-    const encodedPrompt = encodeURIComponent(enhancedPrompt);
     
-    // Пробуем несколько вариантов URL
+    // Добавляем negative prompt через параметр
+    const encodedPrompt = encodeURIComponent(enhancedPrompt);
+    const encodedNegative = encodeURIComponent(negativePrompt);
+    
     const imageUrls = [
       `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`,
       `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`,
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=stable-diffusion`
     ];
     
     const imgContainer = document.createElement('div');
@@ -651,7 +772,6 @@
     
     const tryLoadImage = () => {
       if (currentUrlIndex >= imageUrls.length) {
-        // Все варианты не сработали
         imgContainer.innerHTML = `
           <div class="error-message">
             <strong>Generation failed</strong><br>
@@ -698,10 +818,8 @@
     imgContainer.appendChild(img);
     bubble.appendChild(imgContainer);
     
-    // Запускаем загрузку
     tryLoadImage();
     
-    // Анимация прогресса
     const duration = 30000;
     const startTime = Date.now();
     
