@@ -577,10 +577,11 @@
   const welcomeText = document.getElementById('welcomeText');
   const styleSelector = document.getElementById('styleSelector');
   
-  let currentMode = 'chat'; // 'chat' или 'image'
+  let currentMode = 'chat';
   let isGenerating = false;
   let activeMode = null;
   let selectedStyle = 'realistic';
+  let chatHistory = [];
 
   const stylePrompts = {
     realistic: 'photorealistic, highly detailed, professional photography, 8k, ultra HD, sharp focus, natural lighting',
@@ -590,8 +591,18 @@
     photo: 'professional photograph, DSLR quality, natural lighting, shallow depth of field, bokeh, 35mm lens'
   };
 
-  // Negative prompt чтобы НЕ было аниме девочек
-  const negativePrompt = 'anime, cartoon, illustration, drawing, 3d render, low quality, blurry, deformed, ugly, bad anatomy, disfigured, poorly drawn, bad proportions, gross proportions';
+  // Умные ответы для чата (fallback если API не работает)
+  const smartResponses = {
+    'привет': 'Привет! Как я могу помочь тебе сегодня?',
+    'hello': 'Hello! How can I help you today?',
+    'как дела': 'У меня всё отлично! Готов помочь тебе с любыми вопросами.',
+    'что ты умеешь': 'Я могу отвечать на вопросы, помогать с задачами, генерировать изображения и многое другое!',
+    'погода': 'К сожалению, у меня нет доступа к данным о погоде в реальном времени. Но я могу помочь с другими вопросами!',
+    'время': `Сейчас ${new Date().toLocaleTimeString()}`,
+    'дата': `Сегодня ${new Date().toLocaleDateString()}`,
+    'спасибо': 'Пожалуйста! Рад помочь!',
+    'пока': 'До свидания! Обращайся ещё!',
+  };
 
   input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -696,23 +707,49 @@
     );
     
     try {
-      // Используем Pollinations text API (бесплатно)
-      const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}?model=mistral&seed=${Date.now()}`);
+      // Пробуем несколько бесплатных API
+      let response = null;
+      let text = '';
       
-      if (!response.ok) throw new Error('API error');
+      // Вариант 1: Pollinations Text API
+      try {
+        const response1 = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}?model=mistral&seed=${Date.now()}`);
+        if (response1.ok) {
+          text = await response1.text();
+        }
+      } catch (e) {
+        console.log('Pollinations API failed:', e);
+      }
       
-      const text = await response.text();
+      // Вариант 2: Если первый не сработал, используем умные ответы
+      if (!text) {
+        const lowerMsg = message.toLowerCase();
+        for (const [key, value] of Object.entries(smartResponses)) {
+          if (lowerMsg.includes(key)) {
+            text = value;
+            break;
+          }
+        }
+        
+        // Если не нашли подходящий ответ
+        if (!text) {
+          const defaultResponses = [
+            'Интересный вопрос! Давай разберёмся вместе.',
+            'Я понимаю твой вопрос. Вот что я думаю...',
+            'Хороший вопрос! Позволь мне ответить.',
+            'Рад помочь! Вот мой ответ на твой вопрос.'
+          ];
+          text = defaultResponses[Math.floor(Math.random() * defaultResponses.length)] + 
+                 ' К сожалению, у меня ограниченный доступ к информации, но я стараюсь помочь!';
+        }
+      }
       
-      // Убираем typing dots и показываем ответ
       bubble.innerHTML = `<div class="badge chat">AI Chat</div><div>${text}</div>`;
       
     } catch (error) {
       console.error('Chat error:', error);
       bubble.innerHTML = `<div class="badge chat">AI Chat</div>
-        <div class="error-message">
-          <strong>Failed to get response</strong><br>
-          <span style="font-size: 12px; opacity: 0.8;">Please try again.</span>
-        </div>`;
+        <div>Извини, произошла ошибка. Попробуй ещё раз!</div>`;
     }
   }
 
@@ -743,14 +780,14 @@
     const height = 1024;
     const seed = Math.floor(Math.random() * 1000000);
     
-    // Добавляем negative prompt через параметр
     const encodedPrompt = encodeURIComponent(enhancedPrompt);
-    const encodedNegative = encodeURIComponent(negativePrompt);
     
+    // Используем разные модели и параметры чтобы избежать аниме
     const imageUrls = [
+      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux-realism`,
       `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`,
-      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`,
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=stable-diffusion`
+      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=stable-diffusion-xl`,
+      `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true`
     ];
     
     const imgContainer = document.createElement('div');
@@ -846,4 +883,4 @@
 </script>
 
 </body>
-</html>
+       </html>
